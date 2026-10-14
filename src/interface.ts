@@ -11,7 +11,7 @@ export const icons = {
   arrow: '<svg viewBox="0 0 24 24"><path d="M5 12h14m-5-5 5 5-5 5"/></svg>',
 };
 
-const logo = '<img src="/anijjung-logo.svg" alt="" width="47" height="47" decoding="async">';
+const logo = `<img src="${import.meta.env.BASE_URL}anijjung-logo.svg" alt="" width="47" height="47" decoding="async">`;
 
 export interface UIActions {
   select: (id: ZoneId) => void; clear: () => void;

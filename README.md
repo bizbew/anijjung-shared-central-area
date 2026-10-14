@@ -14,6 +14,18 @@ npm run build
 npm run preview
 ```
 
+## GitHub Pages
+
+The workflow in `.github/workflows/deploy-pages.yml` builds with Node.js 24 and the committed lockfile, then publishes `dist/` with the official GitHub Pages actions. It runs automatically on pushes to `main`, and can also be run manually from the Actions tab. No deployment secrets are required.
+
+One-time repository setup: open **Settings → Pages**, and under **Build and deployment → Source**, select **GitHub Actions**. Then open **Actions → Deploy GitHub Pages → Run workflow** (or re-run the initial workflow if it ran before Pages was enabled). The expected project URL is:
+
+`https://bizbew.github.io/anijjung-shared-central-area/`
+
+The site uses relative Vite asset URLs and `import.meta.env.BASE_URL` for the logo, so JavaScript, styles, and branding load from the repository subdirectory. `index.html` uses Vite's `%BASE_URL%` for the favicon. The local development commands above continue to work at the server root.
+
+A pushed workflow alone does not confirm publication: check for a successful **Deploy site** job and then load the Pages URL. Enabling Pages requires repository settings access; the Actions `GITHUB_TOKEN` cannot create the Pages site for the first time. If the environment blocks the GitHub API, perform this one-time setting in GitHub rather than adding a personal token to the project.
+
 If the cloud machine does not allow the default npm cache location, use `npm ci --cache /workspace/.cache/npm`.
 
 ## Explore
