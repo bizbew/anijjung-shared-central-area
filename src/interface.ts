@@ -8,9 +8,10 @@ export const icons = {
   courtyard: '<svg viewBox="0 0 24 24"><path d="M3 11 12 4l9 7M6 9v11h12V9M10 20v-7h4v7"/></svg>',
   reset: '<svg viewBox="0 0 24 24"><path d="M4 9a8 8 0 1 1 0 6M4 3v6h6"/></svg>',
   export: '<svg viewBox="0 0 24 24"><path d="M12 3v12m-4-4 4 4 4-4M4 15v5h16v-5"/></svg>',
-  leaf: '<svg viewBox="0 0 24 24"><path d="M5 18C-1 7 9 3 20 3c0 12-3 19-13 17M4 22 16 9"/></svg>',
   arrow: '<svg viewBox="0 0 24 24"><path d="M5 12h14m-5-5 5 5-5 5"/></svg>',
 };
+
+const logo = '<img src="/anijjung-logo.svg" alt="" width="47" height="47" decoding="async">';
 
 export interface UIActions {
   select: (id: ZoneId) => void; clear: () => void;
@@ -26,7 +27,7 @@ export function createInterface(app: HTMLElement) {
       <div id="labels" class="labels"></div>
       <header class="masthead">
         <a class="brand" href="#" aria-label="Anijjung Eco Village — กลับมุมมองเริ่มต้น">
-          <span class="brand-mark">${icons.leaf}</span>
+          <span class="brand-mark">${logo}</span>
           <div><h1>ANIJJUNG <span>ECO VILLAGE</span></h1><p>พื้นที่ส่วนกลาง เชื่อมระบบน้ำ พลังงาน และอาหาร</p></div>
         </a>
         <div class="project-tag"><span class="status-dot"></span> CONCEPT STUDY <span class="tag-divider">/</span> 01</div>
@@ -69,7 +70,7 @@ export function createInterface(app: HTMLElement) {
       <div class="scene-caption"><span>THE COMMON GROUND</span><h2>พื้นที่เล็ก ๆ<br>ที่เชื่อมเราเข้าด้วยกัน</h2><p>สำรวจพื้นที่ส่วนกลางทั้ง 6 ระบบ</p></div>
       <footer><span>ภาพแนวคิดเบื้องต้น ไม่ใช่แบบก่อสร้าง</span><span class="interaction-hint">ลากเพื่อหมุน <b>·</b> เลื่อนเพื่อซูม <b>·</b> คลิกเพื่อสำรวจ</span><span class="footer-scale">หน่วยพื้นที่: เมตร</span></footer>
       <div id="toast" class="toast" role="status" aria-live="polite"></div>
-      <div id="loading" class="loading"><span class="loading-leaf">${icons.leaf}</span><p>กำลังจัดเตรียมพื้นที่ส่วนกลาง</p></div>
+      <div id="loading" class="loading"><span class="loading-mark">${logo}</span><p>กำลังจัดเตรียมพื้นที่ส่วนกลาง</p></div>
     </main>`;
   const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
   let actions: UIActions;
@@ -115,6 +116,6 @@ export function createInterface(app: HTMLElement) {
   }
   return { canvas: $<HTMLCanvasElement>('scene'), labels: $('labels'), bind, select, clear, toast, setCamera,
     ready: () => $('loading').remove(),
-    fail: (message: string) => { $('loading').innerHTML = `<span class="loading-leaf">${icons.leaf}</span><h2>ไม่สามารถเปิดภาพสามมิติได้</h2><p>${message}</p><button onclick="location.reload()">ลองอีกครั้ง</button>`; },
+    fail: (message: string) => { $('loading').innerHTML = `<span class="loading-mark">${logo}</span><h2>ไม่สามารถเปิดภาพสามมิติได้</h2><p>${message}</p><button onclick="location.reload()">ลองอีกครั้ง</button>`; },
   };
 }
