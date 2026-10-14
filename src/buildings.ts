@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { SITE, ZONES, type ZoneId } from './config';
-import { MAT, GEO, box, beam, cylinder, sign } from './materials';
+import { MAT, GEO, box, beam, cylinder, sign, pondShape, waterNormalTexture } from './materials';
 
 export interface Buildings { groups: Map<ZoneId, THREE.Group>; pond: THREE.Mesh; }
 
@@ -78,7 +78,7 @@ export function createBuildings(scene: THREE.Scene): Buildings {
   const dimensions = SITE.buildings;
   const groups = new Map<ZoneId, THREE.Group>();
   for (const zone of ZONES) {
-    const group = new THREE.Group(); group.position.set(...zone.center); group.userData.zone = zone.id; scene.add(group); groups.set(zone.id, group);
+    const group = new THREE.Group(); group.position.set(...zone.center); group.userData.zone = zone.id; group.userData.architecture = true; scene.add(group); groups.set(zone.id, group);
   }
   const energy = groups.get('energy')!;
   // Open solar structure with a single slope and individually framed photovoltaic modules.
@@ -122,30 +122,43 @@ export function createBuildings(scene: THREE.Scene): Buildings {
   box(pump, [1.1, .45, .5], [-1.1, .65, 1.1], MAT.blue);
   cylinder(pump, .2, .38, [-.9, .9, 1.1], MAT.darkMetal);
   sign(pump, 'PUMP / TREATMENT', [0, 2.5, 2.1], 2.8);
-  for (const x of [-6.7, -3.8]) {
-    cylinder(water, 1.12, 2.8, [x, 1.4, -1.3], MAT.ivory);
-    cylinder(water, 1.17, .12, [x, 2.8, -1.3], MAT.metal);
-    for (let y = .3; y < 2.8; y += .28) cylinder(water, 1.135, .025, [x, y, -1.3], MAT.concrete);
-    cylinder(water, .28, .11, [x, 2.93, -1.3], MAT.darkMetal);
+  const platform = SITE.tankPlatformHeight;
+  box(water, [6, .18, 3], [-5.25, platform, -1.3], MAT.metal);
+  for (const x of [-8, -2.5]) for (const z of [-2.6, 0]) {
+    box(water, [.14, platform, .14], [x, platform / 2, z], MAT.metal);
+    box(water, [.45, .23, .45], [x, .12, z], MAT.concrete);
   }
+  for (const z of [-2.6, 0]) {
+    beam(water, [-8, .3, z], [-2.5, platform, z], .045, MAT.metal);
+    beam(water, [-2.5, .3, z], [-8, platform, z], .045, MAT.metal);
+  }
+  for (const x of [-6.7, -3.8]) {
+    cylinder(water, 1.12, SITE.tankHeight, [x, platform + SITE.tankHeight / 2 + .09, -1.3], MAT.darkMetal);
+    cylinder(water, 1.17, .12, [x, platform + SITE.tankHeight + .12, -1.3], MAT.blue);
+    for (let y = .15; y < SITE.tankHeight; y += .22) cylinder(water, 1.135, .025, [x, platform + y, -1.3], MAT.metal);
+    cylinder(water, .28, .11, [x, platform + SITE.tankHeight + .24, -1.3], MAT.darkMetal);
+    pipe(water, [[x + .85, platform + 2.7, -1.3], [x + 1.35, platform + 2.7, -1.3], [x + 1.35, .32, -1.3], [-4, .32, 4]], .055);
+  }
+  for (const x of [-8.35, -7.9]) beam(water, [x, 0, .25], [x, platform + .2, .25], .028, MAT.metal);
+  for (let y = .25; y < platform; y += .28) beam(water, [-8.35, y, .25], [-7.9, y, .25], .022, MAT.metal);
   pipe(water, [[-6.7, .35, -1.3], [-6.7, .35, 4.5], [-4.8, .35, 4.5]], .08);
-  pipe(water, [[4, .1, -1], [4, .35, 4], [-4, .35, 4]], .07);
+  pipe(water, [[11, .1, -3], [11, .35, 5], [-4, .35, 5]], .07);
   // The treated-water point is physically separate from the irrigation take-off.
-  const collection = new THREE.Group(); collection.position.set(-9, 0, 12); water.add(collection); pavilion(collection, dimensions.collection.width, dimensions.collection.depth, { height: dimensions.collection.height, roof: MAT.roofRust });
+  const collection = new THREE.Group(); collection.position.set(-9, 0, 12); water.add(collection); pavilion(collection, dimensions.collection.width, dimensions.collection.depth, { height: dimensions.collection.height, roof: MAT.roof });
   box(collection, [2, .9, .7], [0, .7, -.65], MAT.concrete);
   for (const x of [-.55, .55]) { pipe(collection, [[x, 1.25, -.8], [x, 1.25, -.3], [x, 1.1, -.3]], .035, MAT.metal); cylinder(collection, .18, .32, [x, .48, .05], MAT.ivory); }
   sign(collection, 'TREATED WATER', [0, 2.2, 1.4], 2.6);
   pipe(water, [[-3, .27, 6], [-7, .27, 6], [-7, .27, 12], [-9, .27, 12]], .045);
 
-  const pondGeometry = new THREE.RingGeometry(0, 1, 80, 16); pondGeometry.rotateX(-Math.PI / 2);
-  const pondMat = new THREE.MeshPhysicalMaterial({ color: '#597e78', roughness: .24, metalness: .28, transparent: true, opacity: .88, clearcoat: .9, clearcoatRoughness: .15, side: THREE.DoubleSide });
+  const pondGeometry = new THREE.RingGeometry(0, 1, 80, 16); pondGeometry.rotateX(-Math.PI / 2); pondShape(pondGeometry);
+  const pondMat = new THREE.MeshPhysicalMaterial({ color: '#477f7f', normalMap: waterNormalTexture(), normalScale: new THREE.Vector2(.45, .45), roughness: .19, metalness: .3, transparent: true, opacity: .88, clearcoat: .9, clearcoatRoughness: .15, side: THREE.DoubleSide });
   const pond = new THREE.Mesh(pondGeometry, pondMat); pond.scale.set(SITE.pond.radiusX, 1, SITE.pond.radiusZ); pond.position.set(SITE.pond.center[0], .09, SITE.pond.center[2]); pond.receiveShadow = true; pond.userData.zone = 'water'; scene.add(pond);
-  const bank = new THREE.Mesh(new THREE.RingGeometry(1, 1.12, 80), MAT.soil); bank.rotation.x = -Math.PI / 2; bank.scale.set(SITE.pond.radiusX, SITE.pond.radiusZ, 1); bank.position.copy(pond.position); bank.position.y = .07; bank.receiveShadow = true; scene.add(bank);
+  const bank = new THREE.Mesh(pondShape(new THREE.RingGeometry(1, 1.12, 80).rotateX(-Math.PI / 2)), MAT.soil); bank.scale.set(SITE.pond.radiusX, 1, SITE.pond.radiusZ); bank.position.copy(pond.position); bank.position.y = .07; bank.receiveShadow = true; scene.add(bank);
   // Little timber inspection landing.
-  for (let i = 0; i < 14; i++) box(scene, [2.1, .13, .16], [24.5, .4, -13.8 - i * .19], MAT.wood);
-  for (const x of [23.6, 25.4]) for (const z of [-13.8, -16]) cylinder(scene, .09, .8, [x, .2, z], MAT.darkWood);
+  for (let i = 0; i < 14; i++) box(scene, [2.1, .13, .16], [SITE.pond.center[0] - 2.5, .4, SITE.pond.center[2] + SITE.pond.radiusZ - i * .19], MAT.wood);
+  for (const x of [SITE.pond.center[0] - 3.4, SITE.pond.center[0] - 1.6]) for (const z of [SITE.pond.center[2] + 6.4, SITE.pond.center[2] + 4.2]) cylinder(scene, .09, .8, [x, .2, z], MAT.darkWood);
 
-  const processing = groups.get('processing')!; pavilion(processing, dimensions.processing.width, dimensions.processing.depth, { back: true, height: dimensions.processing.height, roof: MAT.roofRust });
+  const processing = groups.get('processing')!; pavilion(processing, dimensions.processing.width, dimensions.processing.depth, { back: true, height: dimensions.processing.height, roof: MAT.roof });
   // Enclosed dry store on the western end; other work areas remain open-sided.
   box(processing, [.14, 2.65, 6.9], [-2.8, 1.6, 0], MAT.plaster);
   box(processing, [3, 2.65, .14], [-4.35, 1.6, 3.4], MAT.plaster);
@@ -164,7 +177,7 @@ export function createBuildings(scene: THREE.Scene): Buildings {
   }
   sign(processing, '04  HARVEST & PROCESS', [.5, 2.95, 3.62], 4.1);
   // Roof rainwater gutter and downpipe lead toward the collection route.
-  pipe(processing, [[6.3, 3.47, -4.1], [6.3, .32, -4.1], [6.3, .2, -32], [21, .2, -32], [21, .15, -36]], .055);
+  pipe(processing, [[6.3, 3.47, -4.1], [6.3, .32, -4.1], [12, .2, -4.1], [12, .2, -31], [-9, .2, -31], [-9, .15, -39]], .055);
 
   const tools = groups.get('tools')!; pavilion(tools, dimensions.tools.width, dimensions.tools.depth, { back: true, height: dimensions.tools.height });
   for (const x of [-4.4, 4.4]) box(tools, [.16, 2.8, 6.4], [x, 1.7, 0], MAT.plaster);
@@ -186,7 +199,7 @@ export function createBuildings(scene: THREE.Scene): Buildings {
   box(tools, [.28, .17, .18], [-2.3, 1.2, -.8], MAT.metal);
   sign(tools, '05  TOOLS & REPAIR', [0, 2.85, 3.4], 3.5);
 
-  const community = groups.get('community')!; pavilion(community, dimensions.community.width, dimensions.community.depth, { back: true, height: dimensions.community.height, roof: MAT.roofRust });
+  const community = groups.get('community')!; pavilion(community, dimensions.community.width, dimensions.community.depth, { back: true, height: dimensions.community.height, roof: MAT.roof });
   box(community, [.15, 2.9, 7], [-4.45, 1.7, 0], MAT.plaster);
   box(community, [.15, 2.9, 2.3], [4.45, 1.7, -2.3], MAT.plaster);
   for (let i = 0; i < 11; i++) box(community, [.05, 1.45, .11], [-3 + i * .4, 1.9, -3.39], MAT.wood);
@@ -200,22 +213,30 @@ export function createBuildings(scene: THREE.Scene): Buildings {
   sign(community, '06  COMMUNITY HOUSE', [0, 3, 3.6], 3.7);
   box(community, [3, .12, .5], [1.4, .1, 5.7], MAT.concrete);
   // Rainwater collection from the community roof, routed along the rear path.
-  pipe(community, [[4.9, 3.45, -4.1], [4.9, .25, -4.1], [4.9, .25, -13], [37, .25, -13]], .055);
+  pipe(community, [[5.9, 3.45, -4.6], [5.9, .25, -4.6], [15, .25, -4.6], [15, .25, -37], [16, .15, -45]], .055);
 
   const food = groups.get('food')!;
   const nursery = new THREE.Group(); nursery.position.set(2, 0, -7); food.add(nursery);
   box(nursery, [6.1, .15, 3.7], [0, .075, 0], MAT.gravel);
   for (const x of [-3, -1.5, 0, 1.5, 3]) {
-    beam(nursery, [x, .15, -1.8], [x, 2.7, 0], .035, MAT.metal); beam(nursery, [x, 2.7, 0], [x, .15, 1.8], .035, MAT.metal);
+    const points: THREE.Vector3[] = [];
+    for (let j = 0; j <= 20; j++) { const a = j / 20 * Math.PI; points.push(new THREE.Vector3(x, .9 + Math.sin(a) * 1.8, Math.cos(a) * 1.8)); }
+    const frame = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 24, .035, 6, false), MAT.metal); frame.castShadow = true; nursery.add(frame);
+    for (const z of [-1.8, 1.8]) beam(nursery, [x, .15, z], [x, .9, z], .035, MAT.metal);
   }
-  const greenhouse = new THREE.Group(); nursery.add(greenhouse);
-  for (const z of [-1, 1]) { const cover = box(greenhouse, [6.2, .03, 2.4], [0, 1.65, z], MAT.glass); cover.rotation.x = z > 0 ? .58 : -.58; }
+  const coverGeometry = new THREE.BufferGeometry(), vertices: number[] = [], indices: number[] = [];
+  for (let i = 0; i <= 12; i++) for (let j = 0; j <= 20; j++) {
+    const a = j / 20 * Math.PI; vertices.push(-3.1 + i / 12 * 6.2, .9 + Math.sin(a) * 1.82, Math.cos(a) * 1.82);
+  }
+  for (let i = 0; i < 12; i++) for (let j = 0; j < 20; j++) { const a = i * 21 + j, b = a + 21; indices.push(a, b, a + 1, b, b + 1, a + 1); }
+  coverGeometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3)); coverGeometry.setIndex(indices); coverGeometry.computeVertexNormals();
+  nursery.add(new THREE.Mesh(coverGeometry, MAT.glass));
   beam(nursery, [-3, 2.7, 0], [3, 2.7, 0], .04, MAT.metal);
   table(nursery, 0, 0, 4, 1.1, 0);
   for (let i = 0; i < 12; i++) cylinder(nursery, .11, .17, [-1.7 + (i % 6) * .65, 1.0, -.27 + Math.floor(i / 6) * .55], MAT.terracotta);
   sign(nursery, 'NURSERY', [0, 1.85, 1.9], 2);
   // Compost lies on the southeast perimeter, far from treated-water collection.
-  const compost = new THREE.Group(); compost.position.set(7, 0, 12); food.add(compost);
+  const compost = new THREE.Group(); compost.position.set(...SITE.compost.position).sub(food.position); compost.rotation.y = SITE.compost.rotation; food.add(compost);
   for (let i = 0; i < 3; i++) {
     const x = -2.4 + i * 2.4;
     box(compost, [2, .38, 2], [x, .2, 0], MAT.soil);
@@ -227,18 +248,32 @@ export function createBuildings(scene: THREE.Scene): Buildings {
   sign(compost, 'COMPOST / ORGANIC', [0, 1.9, 1.15], 3.2);
   for (const x of [-3.5, 3.5]) box(compost, [.1, 2.1, .1], [x, 1.05, 1.15], MAT.wood);
 
-  const pickup = new THREE.Group(); pickup.position.set(0, 0, 12); scene.add(pickup); pickup.userData.zone = 'processing';
-  pavilion(pickup, dimensions.pickup.width, dimensions.pickup.depth, { height: dimensions.pickup.height, roof: MAT.roofRust }); table(pickup, 0, 0, 2.6, .8, .1);
+  const pickup = new THREE.Group(); pickup.position.set(...SITE.pickup); scene.add(pickup); pickup.userData.zone = 'processing'; pickup.userData.architecture = true;
+  pavilion(pickup, dimensions.pickup.width, dimensions.pickup.depth, { height: dimensions.pickup.height, roof: MAT.roof }); table(pickup, 0, 0, 2.6, .8, .1);
   for (const x of [-.8, 0, .8]) crate(pickup, x, 1.0, 0);
   sign(pickup, 'PRODUCE PICKUP', [0, 2.1, 1.5], 2.8);
 
   // Modest peripheral homes give scale without competing with the community hub.
-  for (const [x, z, rot] of [[-31, -30, .2], [-8, -32, -.1], [15, -32, .05], [-34, 29, -.25], [22, 32, .1]]) {
-    const home = new THREE.Group(); home.position.set(x, 0, z); home.rotation.y = rot; scene.add(home);
-    pavilion(home, dimensions.home.width, dimensions.home.depth, { back: true, height: dimensions.home.height, roof: MAT.roofRust });
+  for (const [x, z, rot] of [[-32, -34, .2], [-36, 29, -.25], [-24, 35, .1], [30, 35, -.2], [37, -25, .1]]) {
+    const home = new THREE.Group(); home.position.set(x, 0, z); home.rotation.y = rot; home.userData.architecture = true; scene.add(home);
+    pavilion(home, dimensions.home.width, dimensions.home.depth, { back: true, height: dimensions.home.height, roof: MAT.roof });
     box(home, [6, 2.5, .16], [0, 1.5, 1.3], MAT.plaster);
     for (const wx of [-1.9, 1.9]) { box(home, [1.15, 1, .07], [wx, 1.8, 1.4], MAT.darkWood); for (let i = 0; i < 7; i++) box(home, [1.1, .06, .08], [wx, 1.4 + i * .13, 1.46], MAT.wood); }
     box(home, [.95, 2, .08], [0, 1.2, 1.43], MAT.darkWood);
   }
+  for (const id of ['tools', 'community'] as const) {
+    const g = groups.get(id)!; const dim = dimensions[id];
+    for (let x = -dim.width / 2 + .2; x < dim.width / 2; x += .23) {
+      box(g, [.215, 2.65, .055], [x, 1.6, -dim.depth / 2 + .12], MAT.wood);
+    }
+    for (const x of [-dim.width / 2, dim.width / 2]) {
+      for (let z = -dim.depth / 2 + .15; z < -1.2; z += .23) box(g, [.07, 2.65, .21], [x, 1.6, z], MAT.wood);
+    }
+  }
+  const wing = new THREE.Group(); wing.position.set(-5.8, 0, -1); wing.rotation.y = Math.PI / 2; community.add(wing);
+  pavilion(wing, dimensions.communityWing.width, dimensions.communityWing.depth, { back: true, height: dimensions.communityWing.height });
+  box(wing, [4, 2.6, .13], [0, 1.55, 2.3], MAT.wood);
+  box(wing, [1.5, 1.0, .05], [0, 1.85, 2.4], MAT.darkWood);
+  for (let y = 1.45; y < 2.3; y += .13) box(wing, [1.45, .06, .08], [0, y, 2.44], MAT.wood);
   return { groups, pond };
 }

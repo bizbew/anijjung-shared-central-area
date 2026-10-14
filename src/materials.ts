@@ -30,27 +30,27 @@ function foliageTexture() {
   const canvas = document.createElement('canvas'); canvas.width = canvas.height = 256;
   const ctx = canvas.getContext('2d')!;
   // Individual leaves and twigs on a cutout card, with a transparent silhouette.
-  for (let j = 0; j < 36; j++) {
+  for (let j = 0; j < 52; j++) {
     const x = 128 + (rng() - .5) * 210, y = 128 + (rng() - .5) * 190;
-    const angle = rng() * Math.PI * 2, length = 10 + rng() * 16;
+    const angle = rng() * Math.PI * 2, length = 13 + rng() * 19;
     ctx.save(); ctx.translate(x, y); ctx.rotate(angle);
-    ctx.fillStyle = `hsl(${92 + rng() * 22},${22 + rng() * 14}%,${42 + rng() * 22}%)`;
+    ctx.fillStyle = `hsl(${92 + rng() * 22},${30 + rng() * 14}%,${35 + rng() * 22}%)`;
     ctx.beginPath(); ctx.ellipse(0, 0, length * .38, length, 0, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = '#b3bf8850'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(0, -length); ctx.lineTo(0, length); ctx.stroke(); ctx.restore();
   }
   const map = new THREE.CanvasTexture(canvas); map.colorSpace = THREE.SRGBColorSpace; map.anisotropy = 4; return map;
 }
 export const MAT = {
-  wood: new THREE.MeshStandardMaterial({ map: texture('#92704d', 'wood'), roughness: .88 }),
+  wood: new THREE.MeshStandardMaterial({ map: texture('#9c7950', 'wood'), roughness: .88 }),
   darkWood: new THREE.MeshStandardMaterial({ color: '#69543b', map: texture('#c8a677', 'wood'), roughness: .85 }),
   plaster: new THREE.MeshStandardMaterial({ map: texture('#e0d8bd', 'plaster'), roughness: .96 }),
   concrete: new THREE.MeshStandardMaterial({ map: texture('#b8b5a7', 'plaster'), roughness: .94 }),
   paving: new THREE.MeshStandardMaterial({ map: texture('#c5c1ad', 'paving'), roughness: .95 }),
   soil: new THREE.MeshStandardMaterial({ map: texture('#6d5340', 'soil'), roughness: 1 }),
-  grass: new THREE.MeshStandardMaterial({ map: texture('#919b6d', 'soil'), roughness: 1 }),
-  gravel: new THREE.MeshStandardMaterial({ map: texture('#bfb69f', 'soil'), roughness: 1 }),
-  roof: new THREE.MeshStandardMaterial({ color: '#79786c', roughness: .72, metalness: .24, side: THREE.DoubleSide }),
-  roofRust: new THREE.MeshStandardMaterial({ color: '#99745b', roughness: .84, metalness: .15, side: THREE.DoubleSide }),
+  grass: new THREE.MeshStandardMaterial({ map: texture('#788351', 'soil'), roughness: 1 }),
+  gravel: new THREE.MeshStandardMaterial({ map: texture('#baa985', 'soil'), roughness: 1 }),
+  roof: new THREE.MeshStandardMaterial({ color: '#465452', roughness: .72, metalness: .24, side: THREE.DoubleSide }),
+  roofRust: new THREE.MeshStandardMaterial({ color: '#4b5553', roughness: .84, metalness: .15, side: THREE.DoubleSide }),
   metal: standard('#7a8680', .45, .7), darkMetal: standard('#344443', .5, .55),
   solar: standard('#20364b', .23, .6), solarFrame: standard('#a9b1b1', .3, .8),
   leaf: standard('#55724b', .96), leafLight: standard('#799252', .97), leafDark: standard('#365e45', .96),
@@ -61,12 +61,12 @@ export const MAT = {
   glass: new THREE.MeshPhysicalMaterial({ color: '#d5e2d2', transparent: true, opacity: .23, roughness: .35, metalness: .05, side: THREE.DoubleSide, depthWrite: false }),
 };
 // Ground texture repeats roughly every four meters, with centimeter-scale variation.
-MAT.grass.map!.repeat.set(20, 18); MAT.gravel.map!.repeat.set(8, 8); MAT.soil.map!.repeat.set(6, 6);
+MAT.grass.map!.repeat.set(100, 100); MAT.gravel.map!.repeat.set(8, 8); MAT.soil.map!.repeat.set(6, 6);
 
 // Shared basic geometry reduces memory and lets repeated plants use instancing.
 export const GEO = {
   box: new THREE.BoxGeometry(1, 1, 1), cylinder: new THREE.CylinderGeometry(1, 1, 1, 16),
-  sphere: new THREE.SphereGeometry(1, 12, 8), leaf: new THREE.SphereGeometry(1, 8, 6),
+  sphere: new THREE.SphereGeometry(1, 20, 14), leaf: new THREE.SphereGeometry(1, 8, 6),
 };
 export function box(parent: THREE.Object3D, size: number[], pos: number[], material: THREE.Material, rotation = 0) {
   const mesh = new THREE.Mesh(GEO.box, material); mesh.scale.set(size[0], size[1], size[2]);
@@ -92,4 +92,27 @@ export function sign(parent: THREE.Object3D, text: string, pos: number[], width 
   const map = new THREE.CanvasTexture(c); map.colorSpace = THREE.SRGBColorSpace;
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, width / 4), new THREE.MeshStandardMaterial({ map, roughness: .86, side: THREE.DoubleSide }));
   mesh.position.set(...pos as [number, number, number]); mesh.rotation.y = rotation; parent.add(mesh); return mesh;
+}
+
+export function pondShape(geometry: THREE.BufferGeometry) {
+  const p = geometry.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), z = p.getZ(i), r = Math.hypot(x, z);
+    if (r < .00001) continue;
+    p.setX(i, Math.sign(x) * Math.pow(Math.abs(x) / r, .55) * r);
+    p.setZ(i, Math.sign(z) * Math.pow(Math.abs(z) / r, .55) * r);
+  }
+  geometry.computeVertexNormals(); return geometry;
+}
+export function waterNormalTexture() {
+  const canvas = document.createElement('canvas'); canvas.width = canvas.height = 256;
+  const ctx = canvas.getContext('2d')!, data = ctx.createImageData(256, 256);
+  for (let y = 0; y < 256; y++) for (let x = 0; x < 256; x++) {
+    const i = (y * 256 + x) * 4;
+    data.data[i] = 128 + Math.sin((x * 6 + y * 2) * Math.PI * 2 / 256) * 20;
+    data.data[i + 1] = 128 + Math.cos((y * 8 + x * 3) * Math.PI * 2 / 256) * 16;
+    data.data[i + 2] = 250; data.data[i + 3] = 255;
+  }
+  ctx.putImageData(data, 0, 0); const map = new THREE.CanvasTexture(canvas);
+  map.wrapS = map.wrapT = THREE.RepeatWrapping; map.repeat.set(6, 4); return map;
 }

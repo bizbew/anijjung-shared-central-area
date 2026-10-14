@@ -1,19 +1,21 @@
 import { chromium } from 'playwright';
 import * as THREE from 'three';
+import ts from 'typescript';
 import { strict as assert } from 'node:assert';
 import { mkdir, readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+
+// Compile the actual layout so checks also work on Node 20.19 / 22.12 without native TS loading.
+const layoutSource = await readFile(new URL('../src/config.ts', import.meta.url), 'utf8');
+const layoutJS = ts.transpileModule(layoutSource, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
+const { ZONES, PRESETS } = await import(`data:text/javascript;base64,${Buffer.from(layoutJS).toString('base64')}`);
 
 const executablePath = process.env.CHROMIUM_PATH || (existsSync('/usr/bin/chromium') ? '/usr/bin/chromium' : undefined);
 const browser = await chromium.launch({ executablePath, headless: true, args: ['--no-sandbox', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 const baseURL = process.env.TEST_BASE_URL || 'http://127.0.0.1:5173';
 await mkdir('artifacts', { recursive: true });
 const errors = [];
-const zones = [
-  ['energy', 'พลังงานส่วนกลาง', [-18, 4, -18]], ['water', 'ระบบน้ำ', [21, .2, -15]],
-  ['food', 'แปลงอาหารร่วม', [22, .5, 10]], ['processing', 'เก็บและแปรรูป', [4, 4, 22]],
-  ['tools', 'เครื่องมือและจุดซ่อม', [-23, 4, 13]], ['community', 'บริหารและประชุม', [-15, 4, -1]],
-];
+const zones = ZONES.map(z => [z.id, z.name, [z.center[0], z.id === 'food' || z.id === 'water' ? .2 : 4, z.center[2]]]);
 const waitForFrame = async page => { await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))); };
 const pixels = async page => { await waitForFrame(page); return page.locator('canvas').evaluate(c => c.toDataURL()); };
 function observe(page) {
@@ -22,17 +24,22 @@ function observe(page) {
   page.on('response', response => { if (response.status() >= 400) errors.push(`${response.status()} ${response.url()}`); });
 }
 try {
-  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' }); observe(page);
-  await page.goto(baseURL); await page.locator('#loading').waitFor({ state: 'detached' }); await waitForFrame(page);
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' }); page.setDefaultTimeout(90000); observe(page);
+  await page.goto(baseURL, { waitUntil: 'domcontentloaded', timeout: 90000 }); await page.locator('#loading').waitFor({ state: 'detached' }); await waitForFrame(page);
   assert.equal(await page.locator('.zone-label:visible').count(), 6, 'six desktop labels');
-  const initial = await pixels(page); assert.equal(initial, await pixels(page), 'default view remains still with reduced motion');
+  const fullQuality = await pixels(page); assert.equal(fullQuality, await pixels(page), 'default view remains still with reduced motion');
   await page.screenshot({ path: 'artifacts/overview-desktop.png' });
+  console.log('PASS full-quality overview: six labels, still scene');
+  // Use reduced quality for repeated software-rendered interaction checks.
+  await page.locator('#toggle-quality').check(); const initial = await pixels(page);
+  assert.notEqual(initial, fullQuality, 'reduced quality changes foliage/shadow detail');
 
   for (const [id, name] of zones) {
     await page.locator(`[data-select="${id}"]`).click();
     assert.equal(await page.locator('#panel-title').textContent(), name);
     assert.equal(await page.locator(`[data-select="${id}"]`).getAttribute('aria-pressed'), 'true');
   }
+  console.log('PASS accessible zone selection');
   await page.locator('#collapse-panel').click(); assert.equal(await page.locator('#panel-content').isVisible(), false);
   await page.locator('#collapse-panel').click(); assert.equal(await page.locator('#panel-content').isVisible(), true);
   await page.locator('#close-panel').click();
@@ -41,12 +48,12 @@ try {
 
   // Click physical models as well as the accessible zone list, using their projected locations.
   const camera = new THREE.PerspectiveCamera(40, 1440 / 1000, .3, 650);
-  camera.position.set(62 * 1.07, 53 * 1.07, 69 * 1.07); camera.lookAt(0, 0, 0); camera.updateMatrixWorld();
+  camera.position.set(...PRESETS.overview.position).multiplyScalar(1.07); camera.lookAt(...PRESETS.overview.target); camera.updateMatrixWorld();
   for (const [, name, position] of zones) {
     const projected = new THREE.Vector3(...position).project(camera);
     await page.mouse.click((projected.x + 1) * 720, (1 - projected.y) * 500);
     assert.equal(await page.locator('#panel-title').textContent(), name, `physical selection: ${name}`);
-    await page.locator('#close-panel').click();
+    await page.locator('#close-panel').click(); console.log('PASS physical model:', name);
   }
   await page.locator('#toggle-labels').uncheck(); assert.equal(await page.locator('.zone-label:visible').count(), 0);
   await page.locator('#toggle-labels').check();
@@ -56,11 +63,12 @@ try {
     await page.locator(`[data-flow="${flow}"]`).uncheck();
     assert.equal(await page.locator(`[data-legend="${flow}"]`).isVisible(), false);
   }
+  console.log('PASS master resource overlay');
   const noFlows = await pixels(page); assert.equal(noFlows, initial, 'all four categories disable independently');
   for (const flow of ['water', 'electricity', 'food', 'organic']) {
     await page.locator(`[data-flow="${flow}"]`).check();
     assert.notEqual(await pixels(page), noFlows, `category renders: ${flow}`);
-    await page.locator(`[data-flow="${flow}"]`).uncheck();
+    await page.locator(`[data-flow="${flow}"]`).uncheck(); console.log('PASS flow:', flow);
   }
   for (const flow of ['water', 'electricity', 'food', 'organic']) await page.locator(`[data-flow="${flow}"]`).check();
   await page.screenshot({ path: 'artifacts/resource-flows.png' });
@@ -79,8 +87,8 @@ try {
   assert.equal(png.readUInt32BE(16), 1440); assert.equal(png.readUInt32BE(20), 1000); assert(png.length > 15000, 'export contains the rendered scene');
   await page.close(); console.log('PASS desktop: labels, list and model selection, collapse, four flows, presets, reset, quality, still view, PNG');
 
-  const mobile = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, reducedMotion: 'reduce' }); observe(mobile);
-  await mobile.goto(baseURL); await mobile.locator('#loading').waitFor({ state: 'detached' }); await waitForFrame(mobile);
+  const mobile = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, reducedMotion: 'reduce' }); mobile.setDefaultTimeout(90000); observe(mobile);
+  await mobile.goto(baseURL, { waitUntil: 'domcontentloaded', timeout: 90000 }); await mobile.locator('#loading').waitFor({ state: 'detached' }); await waitForFrame(mobile);
   assert.equal(await mobile.locator('[data-select]:visible').count(), 6);
   assert.equal(await mobile.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'no horizontal overflow');
   await mobile.screenshot({ path: 'artifacts/overview-mobile.png' });

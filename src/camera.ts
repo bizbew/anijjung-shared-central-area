@@ -40,7 +40,7 @@ export class CameraInteraction {
     if (this.pointerStart.distanceTo(new THREE.Vector2(event.clientX, event.clientY)) > 6) return;
     const rect = this.canvas.getBoundingClientRect();
     this.raycaster.setFromCamera(new THREE.Vector2((event.clientX - rect.left) / rect.width * 2 - 1, -(event.clientY - rect.top) / rect.height * 2 + 1), this.camera);
-    const hits = this.raycaster.intersectObjects(this.scene.children, true);
+    const hits = this.raycaster.intersectObjects(this.scene.children.filter(o => !o.userData.decorativeVegetation), true);
     for (const hit of hits) {
       if (!hit.object.visible || hit.object === this.highlight || this.isFlow(hit.object)) continue;
       let node: THREE.Object3D | null = hit.object;
@@ -93,7 +93,7 @@ export class CameraInteraction {
       if (visible) {
         const direction = label.anchor.clone().sub(this.camera.position), distance = direction.length();
         this.labelRay.set(this.camera.position, direction.normalize()); this.labelRay.far = distance - .3;
-        const hit = this.labelRay.intersectObjects(this.scene.children, true).find(h => {
+        const hit = this.labelRay.intersectObjects(this.scene.children.filter(o => o.userData.architecture), true).find(h => {
           const m = (h.object as THREE.Mesh).material as THREE.Material | undefined;
           return h.object !== this.highlight && !this.isFlow(h.object) && m && !m.transparent;
         });
